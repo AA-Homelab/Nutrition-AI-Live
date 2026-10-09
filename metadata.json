@@ -1,0 +1,6 @@
+{
+  "name": "NutriTrack AI",
+  "description": "AI-powered calorie and macronutrient tracking with food photo analysis, Asian & Filipino food database, smart meal recommendations, and conversational nutrition assistant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

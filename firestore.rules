@@ -1,0 +1,139 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // GLOBAL DEFAULT DENY CATCH-ALL (PILLAR 1 & SAFETY NET)
+    // =========================================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // CORE SECURITY PRIMITIVES & HELPERS
+    // =========================================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Admin role check: checks exists in /admins collection, or admin email, or user account role
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email != null && (
+          request.auth.token.email == 'arnold.homelab@gmail.com' ||
+          request.auth.token.email == 'arnoldarceno2525@gmail.com'
+        )) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN')
+      );
+    }
+
+    // =========================================================================
+    // ADMINS COLLECTION
+    // =========================================================================
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // =========================================================================
+    // USERS COLLECTION & SUBCOLLECTIONS
+    // =========================================================================
+    match /users/{userId} {
+      // User can read their own account; Admin can read all user accounts
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      // Administrators can create any accounts; users can create their own account record on registration
+      allow create: if isAdmin() || (
+        isOwner(userId) &&
+        incoming().uid == userId &&
+        incoming().role in ['ADMIN', 'USER'] &&
+        incoming().status in ['active', 'disabled']
+      );
+
+      allow update: if isAdmin() || (
+        isOwner(userId) &&
+        // Regular users can only update non-RBAC profile metadata, never promote themselves to ADMIN
+        !incoming().diff(existing()).affectedKeys().hasAny(['role', 'uid', 'email', 'status'])
+      );
+
+      allow delete: if isAdmin();
+
+      // -----------------------------------------------------------------------
+      // Subcollection: User Profile (Anthropometric stats & diet goals)
+      // -----------------------------------------------------------------------
+      match /profile/{profileDocId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // -----------------------------------------------------------------------
+      // Subcollection: Nutrition Targets (Calculated BMR, TDEE, Macros)
+      // -----------------------------------------------------------------------
+      match /nutrition/{targetDocId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // -----------------------------------------------------------------------
+      // Subcollection: Daily Food Logs
+      // -----------------------------------------------------------------------
+      match /foodLogs/{foodLogId} {
+        allow read: if isOwner(userId);
+        
+        allow create: if isOwner(userId) &&
+          incoming().userId == request.auth.uid &&
+          incoming().mealType in ['breakfast', 'lunch', 'dinner', 'snack'] &&
+          incoming().foodName is string && incoming().foodName.size() <= 150 &&
+          incoming().calories is number && incoming().calories >= 0;
+
+        allow update: if isOwner(userId) &&
+          incoming().userId == request.auth.uid &&
+          incoming().calories is number && incoming().calories >= 0;
+
+        allow delete: if isOwner(userId);
+      }
+
+      // -----------------------------------------------------------------------
+      // Subcollection: Weight Logs
+      // -----------------------------------------------------------------------
+      match /weightLogs/{weightLogId} {
+        allow read: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+          incoming().userId == request.auth.uid &&
+          incoming().weightKg is number && incoming().weightKg > 0;
+
+        allow update: if isOwner(userId) &&
+          incoming().userId == request.auth.uid &&
+          incoming().weightKg is number && incoming().weightKg > 0;
+
+        allow delete: if isOwner(userId);
+      }
+
+      // -----------------------------------------------------------------------
+      // Subcollection: AI Chat Histories
+      // -----------------------------------------------------------------------
+      match /aiChats/{chatId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}

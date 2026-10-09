@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "System user account records managed by administrators",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 128 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["ADMIN", "USER"] },
+        "status": { "type": "string", "enum": ["active", "disabled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "status", "createdAt", "updatedAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User anthropometric stats, activity levels, and dietary goals",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string", "maxLength": 100 },
+        "age": { "type": "number" },
+        "sex": { "type": "string", "enum": ["male", "female", "other"] },
+        "heightCm": { "type": "number" },
+        "weightKg": { "type": "number" },
+        "targetWeightKg": { "type": "number" },
+        "activityLevel": { "type": "string", "enum": ["sedentary", "light", "moderate", "very_active", "extra_active"] },
+        "exerciseSessionsPerWeek": { "type": "number" },
+        "goal": { "type": "string", "enum": ["lose_weight_mild", "lose_weight_standard", "lose_weight_rapid", "maintain_weight", "gain_weight_lean", "gain_weight_bulk"] },
+        "isProfileComplete": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fullName", "age", "sex", "heightCm", "weightKg", "activityLevel", "goal", "isProfileComplete", "updatedAt"]
+    },
+    "NutritionTargets": {
+      "title": "NutritionTargets",
+      "description": "Calculated Mifflin-St Jeor BMR, TDEE, and daily macronutrient gram targets",
+      "type": "object",
+      "properties": {
+        "bmr": { "type": "number" },
+        "tdee": { "type": "number" },
+        "dailyCalories": { "type": "number" },
+        "proteinGrams": { "type": "number" },
+        "carbohydrateGrams": { "type": "number" },
+        "fatGrams": { "type": "number" },
+        "fiberGrams": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bmr", "tdee", "dailyCalories", "proteinGrams", "carbohydrateGrams", "fatGrams", "fiberGrams", "updatedAt"]
+    },
+    "FoodLogEntry": {
+      "title": "FoodLogEntry",
+      "description": "Logged food record with calories, macronutrients, and meal categorization",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "time": { "type": "string", "maxLength": 8 },
+        "mealType": { "type": "string", "enum": ["breakfast", "lunch", "dinner", "snack"] },
+        "foodName": { "type": "string", "maxLength": 150 },
+        "servingSize": { "type": "number" },
+        "unit": { "type": "string", "maxLength": 30 },
+        "calories": { "type": "number" },
+        "protein": { "type": "number" },
+        "carbohydrates": { "type": "number" },
+        "fat": { "type": "number" },
+        "fiber": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 500 },
+        "source": { "type": "string", "enum": ["manual", "ai_photo", "database", "ai_recommendation"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "date", "mealType", "foodName", "servingSize", "unit", "calories", "protein", "carbohydrates", "fat", "source", "createdAt", "updatedAt"]
+    },
+    "WeightLogEntry": {
+      "title": "WeightLogEntry",
+      "description": "Logged body weight entry over time for progress tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "weightKg": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "date", "weightKg", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserAccount",
+      "description": "User account document containing role and operational status"
+    },
+    "/users/{userId}/profile/main": {
+      "schema": "UserProfile",
+      "description": "Main personal nutrition profile containing physical measurements and diet preferences"
+    },
+    "/users/{userId}/nutrition/targets": {
+      "schema": "NutritionTargets",
+      "description": "Calculated calorie and macro targets based on Mifflin-St Jeor engine"
+    },
+    "/users/{userId}/foodLogs/{foodLogId}": {
+      "schema": "FoodLogEntry",
+      "description": "User daily meal logs"
+    },
+    "/users/{userId}/weightLogs/{weightLogId}": {
+      "schema": "WeightLogEntry",
+      "description": "Historical weigh-in records"
+    }
+  }
+}
