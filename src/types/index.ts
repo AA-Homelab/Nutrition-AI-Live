@@ -33,6 +33,8 @@ export interface UserAccount {
   createdAt: string;
   updatedAt: string;
   lastLoginAt?: string;
+  mustChangePassword?: boolean;
+  isFirstLogin?: boolean;
 }
 
 export interface UserProfile {
