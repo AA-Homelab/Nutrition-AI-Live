@@ -493,7 +493,7 @@ Return ONLY a JSON array inside an object with key "recommendations":
  */
 app.post('/api/admin/create-user', async (req, res) => {
   try {
-    const { email, displayName, role = 'USER', initialPassword } = req.body;
+    const { email, displayName, role = 'USER', initialPassword, requirePasswordChange = true } = req.body;
 
     if (!email || !initialPassword) {
       return res.status(400).json({ error: 'Email and initialPassword are required.' });
@@ -580,6 +580,8 @@ app.post('/api/admin/create-user', async (req, res) => {
         displayName: resolvedDisplayName,
         role: role.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'USER',
         status: 'active',
+        mustChangePassword: Boolean(requirePasswordChange),
+        isFirstLogin: Boolean(requirePasswordChange),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
