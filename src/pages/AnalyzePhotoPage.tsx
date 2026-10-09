@@ -6,6 +6,7 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DataService } from '../services/dataService';
+import { AiClientService } from '../services/aiClientService';
 import { AiFoodAnalysisResult, DetectedFoodItem, FoodLogEntry, MealType } from '../types';
 import {
   Camera,
@@ -96,7 +97,7 @@ export const AnalyzePhotoPage: React.FC<AnalyzePhotoPageProps> = ({ onFoodLogged
     reader.readAsDataURL(file);
   };
 
-  // Submit to Server Gemini AI endpoint
+  // Submit to Gemini AI (via server proxy or direct client fallback)
   const handleAnalyze = async () => {
     if (!imagePreview) return;
     setAnalyzing(true);
@@ -104,56 +105,14 @@ export const AnalyzePhotoPage: React.FC<AnalyzePhotoPageProps> = ({ onFoodLogged
     setSavedSuccess(false);
 
     try {
-      const response = await fetch('/api/ai/analyze-food', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: imagePreview,
-          mimeType: 'image/jpeg',
-          userHint: userHint.trim() || undefined,
-        }),
-      });
-
-      if (response.ok) {
-        const data: AiFoodAnalysisResult = await response.json();
-        data.rawImagePreview = imagePreview;
-        setAnalysisResult(data);
-        return;
-      }
+      const data = await AiClientService.analyzeFoodPhoto(imagePreview, 'image/jpeg', userHint);
+      setAnalysisResult(data);
     } catch (err: any) {
-      console.warn('Network issue during food analysis, utilizing instant estimator:', err);
+      console.error('Food analysis error:', err);
+      setErrorMessage('Could not analyze photo. Please check connection or enter manual food item.');
     } finally {
       setAnalyzing(false);
     }
-
-    // Client-side fallback if network was interrupted
-    const dishName = userHint ? userHint.trim() : 'Chicken Adobo Plate with Rice';
-    setAnalysisResult({
-      foods: [
-        {
-          id: `detected-${Date.now()}-0`,
-          name: dishName,
-          estimatedServingGrams: 280,
-          unit: 'g',
-          calories: 520,
-          proteinGrams: 36,
-          carbohydratesGrams: 48,
-          fatGrams: 18,
-          fiberGrams: 1.5,
-          confidence: 0.82,
-          selected: true,
-        },
-      ],
-      total: {
-        calories: 520,
-        proteinGrams: 36,
-        carbohydratesGrams: 48,
-        fatGrams: 18,
-      },
-      notes: 'Instant estimate provided. You can freely edit portions, calories, and macros before saving.',
-      disclaimer: 'AI nutrition estimates are approximate. Please verify serving sizes and nutrition information when accuracy is important.',
-      rawImagePreview: imagePreview,
-    });
   };
 
   // Edit identified item fields inline
@@ -403,6 +362,15 @@ export const AnalyzePhotoPage: React.FC<AnalyzePhotoPageProps> = ({ onFoodLogged
                   {analysisResult.disclaimer}
                 </span>
               </div>
+
+              {analysisResult.isDemoFallback && (
+                <div className="p-3.5 rounded-2xl bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs flex items-start gap-2.5">
+                  <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-sky-400" />
+                  <div className="leading-relaxed">
+                    <span className="font-semibold text-white">GitHub Pages Notice:</span> Since GitHub Pages only hosts static files without a Node backend, sample dish data was provided. To enable live multimodal Gemini analysis on GitHub Pages, add <code className="bg-slate-800 px-1 py-0.5 rounded text-sky-200">VITE_GEMINI_API_KEY</code> to your GitHub Repository Secrets.
+                  </div>
+                </div>
+              )}
 
               {/* Meal Classification selector */}
               <div className="flex items-center justify-between gap-4 pb-3 border-b border-slate-800">
