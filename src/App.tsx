@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { LoginPage } from './pages/LoginPage';
+import { ForceChangePasswordPage } from './pages/ForceChangePasswordPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FoodLogPage } from './pages/FoodLogPage';
 import { AnalyzePhotoPage } from './pages/AnalyzePhotoPage';
@@ -43,6 +44,11 @@ function AppContent() {
   // Not logged in -> Show Login Page
   if (!currentUser) {
     return <LoginPage />;
+  }
+
+  // First time login / Temporary password -> Must change password first!
+  if (userAccount?.mustChangePassword || userAccount?.isFirstLogin) {
+    return <ForceChangePasswordPage />;
   }
 
   // First time login -> Show 6-step Onboarding Wizard if profile is not completed
