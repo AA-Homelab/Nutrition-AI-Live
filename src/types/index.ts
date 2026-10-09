@@ -118,6 +118,7 @@ export interface AiFoodAnalysisResult {
   notes: string;
   disclaimer: string;
   rawImagePreview?: string;
+  isDemoFallback?: boolean;
 }
 
 export interface WeightLogEntry {
