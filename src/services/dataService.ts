@@ -209,23 +209,27 @@ export const DataService = {
     }
   },
 
-  async updateUserStatus(userId: string, status: 'active' | 'disabled'): Promise<void> {
+  async updateUserAccount(userId: string, partial: Partial<UserAccount>): Promise<void> {
     const users = getLocalStore<UserAccount[]>('users', DEFAULT_LOCAL_USERS);
     const updated = users.map((u) =>
-      u.uid === userId ? { ...u, status, updatedAt: new Date().toISOString() } : u
+      u.uid === userId ? { ...u, ...partial, updatedAt: new Date().toISOString() } : u
     );
     setLocalStore('users', updated);
 
     if (isFirebaseConfigured && db) {
       try {
         await updateDoc(doc(db, 'users', userId), {
-          status,
+          ...partial,
           updatedAt: new Date().toISOString(),
         });
       } catch (err) {
         handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`, auth);
       }
     }
+  },
+
+  async updateUserStatus(userId: string, status: 'active' | 'disabled'): Promise<void> {
+    return this.updateUserAccount(userId, { status });
   },
 
   /**
