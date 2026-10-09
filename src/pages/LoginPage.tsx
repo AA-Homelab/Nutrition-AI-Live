@@ -249,38 +249,7 @@ export const LoginPage: React.FC = () => {
             </form>
           )}
 
-          {/* Switch tab hint */}
-          <div className="mt-6 pt-4 border-t border-slate-800 text-center">
-            {mode === 'signin' ? (
-              <p className="text-xs text-slate-400">
-                Don't have an account yet?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('signup');
-                    setErrorMessage(null);
-                  }}
-                  className="text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-2"
-                >
-                  Create an account
-                </button>
-              </p>
-            ) : (
-              <p className="text-xs text-slate-400">
-                Already registered?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('signin');
-                    setErrorMessage(null);
-                  }}
-                  className="text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-2"
-                >
-                  Sign in to your account
-                </button>
-              </p>
-            )}
-          </div>
+          {/* Switch tab hint removed */}
         </div>
       </div>
 
