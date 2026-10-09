@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DataService } from '../services/dataService';
+import { AiClientService } from '../services/aiClientService';
 import { calculateRemaining } from '../services/nutritionCalculator';
 import { AiChatMessage, FoodLogEntry } from '../types';
 import {
@@ -93,30 +94,15 @@ export const AiAssistantPage: React.FC = () => {
     setSending(true);
 
     try {
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
-          context: {
-            dailyTarget: defaultTargets.dailyCalories,
-            consumed,
-            remaining,
-            goal: userProfile?.goal,
-            dietaryPreferences: userProfile?.dietaryPreferences,
-            allergies: userProfile?.allergies,
-            loggedMeals: todayLogs,
-          },
-        }),
+      const { content } = await AiClientService.chatWithAi(newMessages, {
+        dailyTarget: defaultTargets.dailyCalories,
+        consumed,
+        remaining,
+        goal: userProfile?.goal,
+        dietaryPreferences: userProfile?.dietaryPreferences,
+        allergies: userProfile?.allergies,
+        loggedMeals: todayLogs,
       });
-
-      let content = '';
-      if (response.ok) {
-        const data = await response.json();
-        content = data.content;
-      } else {
-        content = `Based on your remaining budget of **${remaining.calories} kcal** (Protein: **${remaining.protein}g**, Carbs: **${remaining.carbohydrates}g**, Fat: **${remaining.fat}g**):\n\n- **Tinolang Manok & 1/2 Cup Rice**: ~340 kcal, 30g Protein\n- **Sinigang na Hipon (Shrimp Sour Soup)**: ~220 kcal, 25g Protein\n- **Tofu & Vegetables with Boiled Egg**: ~280 kcal, 22g Protein\n\nThese options will fit your remaining macros cleanly!`;
-      }
 
       const assistantMsg: AiChatMessage = {
         id: `msg-${Date.now()}-assistant`,
@@ -131,15 +117,7 @@ export const AiAssistantPage: React.FC = () => {
         console.warn('Notice saving chat history:', e);
       });
     } catch (err: any) {
-      const fallbackMsg: AiChatMessage = {
-        id: `msg-${Date.now()}-fallback`,
-        role: 'assistant',
-        content: `You currently have **${remaining.calories} kcal** remaining today (Protein: **${remaining.protein}g**, Carbs: **${remaining.carbohydrates}g**, Fat: **${remaining.fat}g**).\n\nA great meal option would be a bowl of Sinigang or Grilled Chicken Inasal with steamed brown rice to meet your protein target while maintaining your calorie deficit.`,
-        timestamp: new Date().toISOString(),
-      };
-      const finalFallback = [...newMessages, fallbackMsg];
-      setMessages(finalFallback);
-      DataService.saveChatHistory(uid, finalFallback).catch(() => {});
+      console.error('Chat error:', err);
     } finally {
       setSending(false);
     }
