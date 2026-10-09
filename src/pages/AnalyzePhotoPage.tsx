@@ -538,3 +538,4 @@ export const AnalyzePhotoPage: React.FC<AnalyzePhotoPageProps> = ({ onFoodLogged
     </div>
   );
 };
+
