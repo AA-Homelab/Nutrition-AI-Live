@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 export const AdminDashboardPage: React.FC = () => {
-  const { currentUser, userAccount, isAdmin, isFirebaseLive } = useAuth();
+  const { currentUser, userAccount, isAdmin, isFirebaseLive, forceRequirePasswordChange } = useAuth();
 
   const [usersList, setUsersList] = useState<UserAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +38,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('Welcome123!');
+  const [requirePasswordChange, setRequirePasswordChange] = useState(true);
   const [newRole, setNewRole] = useState<UserRole>('USER');
   const [submittingUser, setSubmittingUser] = useState(false);
 
@@ -91,6 +92,7 @@ export const AdminDashboardPage: React.FC = () => {
           displayName: newDisplayName.trim(),
           role: newRole,
           initialPassword: newPassword,
+          requirePasswordChange,
         }),
       });
 
@@ -106,6 +108,8 @@ export const AdminDashboardPage: React.FC = () => {
         displayName: data.user.displayName,
         role: data.user.role,
         status: 'active',
+        mustChangePassword: requirePasswordChange,
+        isFirstLogin: requirePasswordChange,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -131,13 +135,16 @@ export const AdminDashboardPage: React.FC = () => {
 
       setStatusMessage({
         type: 'success',
-        text: `Account for ${newEmail} successfully registered in Firebase Authentication and database!`,
+        text: `Account for ${newEmail} successfully registered in Firebase Authentication and database! ${
+          requirePasswordChange ? '(Required to change temporary password on first sign-in)' : ''
+        }`,
       });
 
       setCreateModalOpen(false);
       setNewDisplayName('');
       setNewEmail('');
       setNewPassword('Welcome123!');
+      setRequirePasswordChange(true);
       await loadUsers();
     } catch (err: any) {
       setStatusMessage({
@@ -146,6 +153,25 @@ export const AdminDashboardPage: React.FC = () => {
       });
     } finally {
       setSubmittingUser(false);
+    }
+  };
+
+  const handleToggleRequirePasswordChange = async (user: UserAccount) => {
+    const nextVal = !(user.mustChangePassword || user.isFirstLogin);
+    try {
+      await forceRequirePasswordChange(user.uid, nextVal);
+      setStatusMessage({
+        type: 'success',
+        text: nextVal
+          ? `Password change is now mandatory on next login for ${user.email}.`
+          : `Password change requirement cleared for ${user.email}.`,
+      });
+      await loadUsers();
+    } catch (err: any) {
+      setStatusMessage({
+        type: 'error',
+        text: err.message || 'Failed to update user security setting.',
+      });
     }
   };
 
@@ -293,6 +319,7 @@ export const AdminDashboardPage: React.FC = () => {
                 <th className="pb-3 font-semibold">User</th>
                 <th className="pb-3 font-semibold">Role</th>
                 <th className="pb-3 font-semibold">Status</th>
+                <th className="pb-3 font-semibold">Password Status</th>
                 <th className="pb-3 font-semibold">Created Date</th>
                 <th className="pb-3 font-semibold text-right">Actions</th>
               </tr>
@@ -301,6 +328,7 @@ export const AdminDashboardPage: React.FC = () => {
               {filteredUsers.map((user, idx) => {
                 const isCurrentUser = user.uid === currentUser?.uid;
                 const rowKey = user.uid ? `${user.uid}-${idx}` : `user-${user.email || idx}`;
+                const needsPasswordChange = Boolean(user.mustChangePassword || user.isFirstLogin);
 
                 return (
                   <tr key={rowKey} className="hover:bg-slate-800/30 transition-colors">
@@ -352,17 +380,45 @@ export const AdminDashboardPage: React.FC = () => {
                       </span>
                     </td>
 
+                    <td className="py-3.5">
+                      {needsPasswordChange ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center gap-1 w-fit">
+                          <KeyRound className="w-3 h-3 text-amber-400" />
+                          Change Required
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-300 flex items-center gap-1 w-fit">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          Active
+                        </span>
+                      )}
+                    </td>
+
                     <td className="py-3.5 text-slate-400 font-mono text-[11px]">
                       {user.createdAt ? user.createdAt.substring(0, 10) : 'Pre-seeded'}
                     </td>
 
                     <td className="py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleRequirePasswordChange(user)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors flex items-center gap-1 ${
+                            needsPasswordChange
+                              ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                          }`}
+                          title={needsPasswordChange ? 'Clear mandatory password change' : 'Require password change on next sign-in'}
+                        >
+                          <KeyRound className="w-3 h-3" />
+                          {needsPasswordChange ? 'Cancel Req' : 'Require New Pass'}
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => handleResetPassword(user.email)}
                           className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold"
-                          title="Trigger Password Reset"
+                          title="Trigger Password Reset Email"
                         >
                           Reset Pass
                         </button>
@@ -449,6 +505,26 @@ export const AdminDashboardPage: React.FC = () => {
                   <option value="USER">USER (Regular Member - Calorie tracking & AI tools)</option>
                   <option value="ADMIN">ADMIN (Full administrative & user management privileges)</option>
                 </select>
+              </div>
+
+              {/* Mandatory First-Time Password Change Toggle */}
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
+                    <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                    Require Password Change on First Login
+                  </div>
+                  <p className="text-[11px] text-amber-200/80 mt-0.5 leading-snug">
+                    Forces the user to immediately replace the temporary password upon their first sign-in before accessing the dashboard or nutrition tools.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  id="req-pass-change"
+                  checked={requirePasswordChange}
+                  onChange={(e) => setRequirePasswordChange(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded text-amber-500 bg-slate-950 border-amber-500/40 focus:ring-amber-500 cursor-pointer"
+                />
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
