@@ -8,6 +8,9 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
   onAuthStateChanged,
@@ -29,6 +32,8 @@ interface AuthContextType {
   signUp: (email: string, password: string, displayName?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; message: string }>;
+  changePassword: (newPassword: string, currentPassword?: string) => Promise<{ success: boolean; error?: string }>;
+  forceRequirePasswordChange: (targetUid: string, require: boolean) => Promise<void>;
   refreshProfile: () => Promise<void>;
   refreshTargets: () => Promise<void>;
   updateProfileAndTargets: (profile: UserProfile, targets: NutritionTargets) => Promise<void>;
@@ -307,6 +312,100 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const changePassword = async (
+    newPassword: string,
+    currentPassword?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      if (!newPassword || newPassword.length < 6) {
+        return { success: false, error: 'Password must be at least 6 characters long.' };
+      }
+
+      if (isFirebaseConfigured && auth && auth.currentUser) {
+        // Re-authenticate if current password was supplied to ensure credentials are fresh
+        if (currentPassword && auth.currentUser.email) {
+          try {
+            const cred = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+            await reauthenticateWithCredential(auth.currentUser, cred);
+          } catch (reauthErr: any) {
+            console.warn('Re-auth notice during password change:', reauthErr);
+            if (
+              reauthErr?.code === 'auth/wrong-password' ||
+              reauthErr?.code === 'auth/invalid-credential' ||
+              reauthErr?.message?.includes('invalid-credential')
+            ) {
+              return { success: false, error: 'The temporary or current password entered is incorrect.' };
+            }
+          }
+        }
+
+        try {
+          await updatePassword(auth.currentUser, newPassword);
+        } catch (updateErr: any) {
+          if (updateErr?.code === 'auth/requires-recent-login' && currentPassword && auth.currentUser.email) {
+            const cred = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+            await reauthenticateWithCredential(auth.currentUser, cred);
+            await updatePassword(auth.currentUser, newPassword);
+          } else {
+            throw updateErr;
+          }
+        }
+      }
+
+      // Persist update in user account document
+      const targetUid = currentUser?.uid || userAccount?.uid;
+      if (targetUid) {
+        await DataService.updateUserAccount(targetUid, {
+          mustChangePassword: false,
+          isFirstLogin: false,
+          updatedAt: new Date().toISOString(),
+        });
+
+        setUserAccount((prev) =>
+          prev
+            ? {
+                ...prev,
+                mustChangePassword: false,
+                isFirstLogin: false,
+                updatedAt: new Date().toISOString(),
+              }
+            : null
+        );
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.error('Failed to change password:', err);
+      let msg = err.message || 'Failed to update password.';
+      if (msg.includes('auth/weak-password')) {
+        msg = 'Password should be at least 6 characters with mixed letters and numbers.';
+      } else if (msg.includes('auth/requires-recent-login')) {
+        msg = 'Recent authentication required. Please sign in again to set your new password.';
+      }
+      return { success: false, error: msg };
+    }
+  };
+
+  const forceRequirePasswordChange = async (targetUid: string, require: boolean) => {
+    await DataService.updateUserAccount(targetUid, {
+      mustChangePassword: require,
+      isFirstLogin: require,
+      updatedAt: new Date().toISOString(),
+    });
+
+    if (userAccount?.uid === targetUid) {
+      setUserAccount((prev) =>
+        prev
+          ? {
+              ...prev,
+              mustChangePassword: require,
+              isFirstLogin: require,
+            }
+          : null
+      );
+    }
+  };
+
   const refreshProfile = async () => {
     if (currentUser?.uid) {
       const p = await DataService.getUserProfile(currentUser.uid);
@@ -345,6 +444,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUp,
         logout,
         resetPassword,
+        changePassword,
+        forceRequirePasswordChange,
         refreshProfile,
         refreshTargets,
         updateProfileAndTargets,
