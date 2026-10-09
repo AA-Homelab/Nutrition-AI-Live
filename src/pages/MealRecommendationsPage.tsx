@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DataService } from '../services/dataService';
+import { AiClientService } from '../services/aiClientService';
 import { calculateRemaining } from '../services/nutritionCalculator';
 import { FoodLogEntry, MealRecommendation, MealType } from '../types';
 import {
@@ -69,106 +70,22 @@ export const MealRecommendationsPage: React.FC<MealRecommendationsPageProps> = (
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/ai/recommend-meals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          remaining,
-          goal: userProfile?.goal,
-          preferences: userProfile?.dietaryPreferences,
-          allergies: userProfile?.allergies,
-          mealType: selectedMealType,
-        }),
+      const data = await AiClientService.recommendMeals({
+        remaining,
+        goal: userProfile?.goal,
+        preferences: userProfile?.dietaryPreferences,
+        allergies: userProfile?.allergies,
+        mealType: selectedMealType,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data.recommendations) && data.recommendations.length > 0) {
-          setRecommendations(data.recommendations);
-          setLoading(false);
-          return;
-        }
+      if (Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+        setRecommendations(data.recommendations);
       }
     } catch (err) {
-      console.warn('Notice loading recommendations, using calibrated defaults:', err);
+      console.warn('Notice loading recommendations:', err);
+    } finally {
+      setLoading(false);
     }
-
-    // High quality client-side fallback matching user's remaining calories and macros
-    const cals = remaining.calories || 600;
-    const protein = remaining.protein || 35;
-    const carbs = remaining.carbohydrates || 50;
-    const fat = remaining.fat || 15;
-
-    const fallbackItems: MealRecommendation[] = [
-      {
-        id: `rec-client-1-${Date.now()}`,
-        title: 'Grilled Chicken Inasal with Garlic Brown Rice & Atchara',
-        mealType: selectedMealType,
-        calories: Math.min(cals, 480),
-        protein: Math.max(25, Math.min(protein, 42)),
-        carbohydrates: Math.max(20, Math.min(carbs, 46)),
-        fat: Math.max(8, Math.min(fat, 12)),
-        fiber: 4,
-        servingSize: '1 grilled chicken breast + 1 cup brown rice',
-        ingredients: [
-          'Boneless skinless chicken breast',
-          'Calamansi & garlic marinade with atsuete',
-          'Steamed brown garlic rice',
-          'Pickled papaya (atchara)',
-        ],
-        instructions:
-          'Pan-sear seasoned chicken breast until cooked through. Plate over warm garlic brown rice alongside tangy atchara.',
-        tags: ['High Protein', 'Filipino', 'Lean'],
-        reason: `Maximizes high-satiety protein while staying neatly under your ${cals} kcal ceiling.`,
-      },
-      {
-        id: `rec-client-2-${Date.now()}`,
-        title: 'Sinigang na Hipon (Shrimp Tamarind Soup with Water Spinach)',
-        mealType: selectedMealType,
-        calories: Math.min(cals, 240),
-        protein: Math.max(20, Math.min(protein, 28)),
-        carbohydrates: Math.max(8, Math.min(carbs, 14)),
-        fat: Math.max(4, Math.min(fat, 5)),
-        fiber: 4,
-        servingSize: '1 large bowl with broth & vegetables',
-        ingredients: [
-          'Fresh peeled shrimp',
-          'Tamarind sour broth base',
-          'Kangkong (water spinach)',
-          'White radish (labanos)',
-          'Tomatoes & green long pepper',
-        ],
-        instructions:
-          'Simmer tomatoes and tamarind broth with sliced radish, then poach fresh shrimp and kangkong for 2 minutes.',
-        tags: ['Low Calorie', 'High Satiety', 'Soup'],
-        reason: 'Ultra low-calorie, high volume meal that provides maximum fullness with minimal fats.',
-      },
-      {
-        id: `rec-client-3-${Date.now()}`,
-        title: 'Crispy Tofu & Mushroom Stir-Fry with Steamed Quinoa',
-        mealType: selectedMealType,
-        calories: Math.min(cals, 360),
-        protein: Math.max(16, Math.min(protein, 22)),
-        carbohydrates: Math.max(25, Math.min(carbs, 40)),
-        fat: Math.max(7, Math.min(fat, 11)),
-        fiber: 6,
-        servingSize: '1 generous plate',
-        ingredients: [
-          'Extra firm cubed tofu',
-          'Fresh shiitake mushrooms',
-          'Bok choy & minced garlic',
-          'Cooked fluffy quinoa',
-          'Low-sodium soy sauce & sesame oil',
-        ],
-        instructions:
-          'Crisp the cubed tofu in a hot pan, add garlic, mushrooms, and bok choy with light soy sauce, then serve over quinoa.',
-        tags: ['Plant-Based', 'High Fiber'],
-        reason: 'Balanced blend of complex carbohydrates, fiber, and clean plant proteins.',
-      },
-    ];
-
-    setRecommendations(fallbackItems);
-    setLoading(false);
   };
 
   useEffect(() => {
