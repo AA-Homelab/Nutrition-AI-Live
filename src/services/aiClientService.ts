@@ -8,6 +8,15 @@ import { AiChatMessage, AiFoodAnalysisResult, DetectedFoodItem, MealRecommendati
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 const CLIENT_GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
 
+const isStaticHost =
+  typeof window !== 'undefined' &&
+  (window.location.hostname.endsWith('github.io') ||
+    window.location.hostname.includes('pages.dev') ||
+    (!API_BASE &&
+      window.location.hostname !== 'localhost' &&
+      !window.location.hostname.includes('127.0.0.1') &&
+      !window.location.hostname.includes('.run.app')));
+
 const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
 
 /**
@@ -59,24 +68,26 @@ export const AiClientService = {
   ): Promise<AiFoodAnalysisResult & { isDemoFallback?: boolean }> {
     const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
 
-    // Step A: Attempt server-side proxy endpoint first (if backend is deployed)
-    try {
-      const response = await fetch(`${API_BASE}/api/ai/analyze-food`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: cleanBase64,
-          mimeType,
-          userHint: userHint?.trim() || undefined,
-        }),
-      });
+    // Step A: Attempt server-side proxy endpoint first (if backend is deployed and not on static host without API_BASE)
+    if (!isStaticHost || API_BASE) {
+      try {
+        const response = await fetch(`${API_BASE}/api/ai/analyze-food`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: cleanBase64,
+            mimeType,
+            userHint: userHint?.trim() || undefined,
+          }),
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        return { ...data, rawImagePreview: imageBase64, isDemoFallback: false };
+        if (response.ok) {
+          const data = await response.json();
+          return { ...data, rawImagePreview: imageBase64, isDemoFallback: false };
+        }
+      } catch {
+        // Backend unreachable
       }
-    } catch {
-      // Backend unreachable (typical for static GitHub Pages)
     }
 
     // Step B: Direct client-side Gemini call if VITE_GEMINI_API_KEY is available
@@ -228,23 +239,25 @@ Return ONLY a JSON object strictly matching this schema:
     messages: AiChatMessage[],
     context: any
   ): Promise<{ content: string; isDemoFallback?: boolean }> {
-    // Step A: Attempt server-side proxy endpoint first
-    try {
-      const response = await fetch(`${API_BASE}/api/ai/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: messages.map((m) => ({ role: m.role, content: m.content })),
-          context,
-        }),
-      });
+    // Step A: Attempt server-side proxy endpoint first (if backend is deployed and not on static host without API_BASE)
+    if (!isStaticHost || API_BASE) {
+      try {
+        const response = await fetch(`${API_BASE}/api/ai/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: messages.map((m) => ({ role: m.role, content: m.content })),
+            context,
+          }),
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        return { content: data.content, isDemoFallback: false };
+        if (response.ok) {
+          const data = await response.json();
+          return { content: data.content, isDemoFallback: false };
+        }
+      } catch {
+        // Backend unreachable
       }
-    } catch {
-      // Backend unreachable
     }
 
     // Step B: Direct client-side Gemini call if VITE_GEMINI_API_KEY is available
@@ -308,22 +321,24 @@ GUIDELINES:
     allergies?: string[];
     mealType?: string;
   }): Promise<{ recommendations: MealRecommendation[]; isDemoFallback?: boolean }> {
-    // Step A: Attempt server-side proxy
-    try {
-      const response = await fetch(`${API_BASE}/api/ai/recommend-meals`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
-      });
+    // Step A: Attempt server-side proxy (if backend is deployed and not on static host without API_BASE)
+    if (!isStaticHost || API_BASE) {
+      try {
+        const response = await fetch(`${API_BASE}/api/ai/recommend-meals`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params),
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data.recommendations) && data.recommendations.length > 0) {
-          return { recommendations: data.recommendations, isDemoFallback: false };
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+            return { recommendations: data.recommendations, isDemoFallback: false };
+          }
         }
+      } catch {
+        // Backend unreachable
       }
-    } catch {
-      // Backend unreachable
     }
 
     // Step B: Direct client-side Gemini if VITE_GEMINI_API_KEY is available
