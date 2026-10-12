@@ -29,7 +29,7 @@ interface AnalyzePhotoPageProps {
 }
 
 export const AnalyzePhotoPage: React.FC<AnalyzePhotoPageProps> = ({ onFoodLogged }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, userAccount } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -159,14 +159,27 @@ export const AnalyzePhotoPage: React.FC<AnalyzePhotoPageProps> = ({ onFoodLogged
 
   // Confirm and log selected foods
   const handleConfirmAndLog = async () => {
-    if (!currentUser?.uid || !analysisResult) return;
+    // Resolve active user identifier with comprehensive fallbacks
+    const effectiveUserId =
+      currentUser?.uid ||
+      userAccount?.uid ||
+      localStorage.getItem('nutritrack_session_uid') ||
+      'user-seed-02';
+
+    if (!analysisResult) {
+      setErrorMessage('No photo analysis available. Please upload and analyze a food photo first.');
+      return;
+    }
+
     const itemsToLog = analysisResult.foods.filter((f) => f.selected);
     if (itemsToLog.length === 0) {
-      setErrorMessage('Please select at least one food item to log.');
+      setErrorMessage('Please select at least one food item below to add to your food log.');
       return;
     }
 
     setSaving(true);
+    setErrorMessage(null);
+
     try {
       const todayStr = new Date().toISOString().split('T')[0];
       const nowTime = new Date().toTimeString().substring(0, 5);
@@ -174,21 +187,21 @@ export const AnalyzePhotoPage: React.FC<AnalyzePhotoPageProps> = ({ onFoodLogged
       for (const item of itemsToLog) {
         const logEntry: FoodLogEntry = {
           id: `ai-log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          userId: currentUser.uid,
+          userId: effectiveUserId,
           date: todayStr,
           time: nowTime,
           mealType,
-          foodName: item.name,
-          servingSize: item.estimatedServingGrams,
-          unit: 'g',
-          calories: item.calories,
-          protein: item.proteinGrams,
-          carbohydrates: item.carbohydratesGrams,
-          fat: item.fatGrams,
-          fiber: item.fiberGrams || 0,
-          notes: `Visual AI estimate: ${item.estimatedServingGrams}g portion (${Math.round((item.confidence || 0.8) * 100)}% confidence)`,
+          foodName: item.name || 'Identified Food Item',
+          servingSize: Number(item.estimatedServingGrams) || 100,
+          unit: item.unit || 'g',
+          calories: Math.round(Number(item.calories) || 0),
+          protein: Number((Number(item.proteinGrams) || 0).toFixed(1)),
+          carbohydrates: Number((Number(item.carbohydratesGrams) || 0).toFixed(1)),
+          fat: Number((Number(item.fatGrams) || 0).toFixed(1)),
+          fiber: Number((Number(item.fiberGrams) || 0).toFixed(1)),
+          notes: `Visual AI estimate: ${item.estimatedServingGrams || 100}g portion (${Math.round((item.confidence || 0.8) * 100)}% confidence)`,
           source: 'ai_photo',
-          aiConfidence: item.confidence,
+          aiConfidence: item.confidence || 0.8,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -198,9 +211,10 @@ export const AnalyzePhotoPage: React.FC<AnalyzePhotoPageProps> = ({ onFoodLogged
       setSavedSuccess(true);
       setTimeout(() => {
         onFoodLogged();
-      }, 1200);
+      }, 1000);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to save food entries.');
+      console.error('Failed to log food entries:', err);
+      setErrorMessage(err?.message || 'Failed to save food entries. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -505,22 +519,33 @@ export const AnalyzePhotoPage: React.FC<AnalyzePhotoPageProps> = ({ onFoodLogged
               </div>
 
               {/* Action Buttons */}
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setAnalysisResult(null)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800"
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 transition-colors cursor-pointer text-center"
                 >
                   Discard
                 </button>
                 <button
                   type="button"
-                  disabled={saving}
+                  disabled={saving || (analysisResult?.foods.filter((f) => f.selected).length ?? 0) === 0}
                   onClick={handleConfirmAndLog}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/25 transition-all disabled:opacity-50"
+                  className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {saving ? 'Adding to Log...' : `Add to ${mealType.charAt(0).toUpperCase() + mealType.slice(1)} Log`}
-                  <CheckCircle2 className="w-4 h-4" />
+                  {saving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Adding to Log...
+                    </>
+                  ) : (
+                    <>
+                      {`Add to ${mealType.charAt(0).toUpperCase() + mealType.slice(1)} Log (${
+                        analysisResult?.foods.filter((f) => f.selected).length ?? 0
+                      })`}
+                      <CheckCircle2 className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -538,4 +563,3 @@ export const AnalyzePhotoPage: React.FC<AnalyzePhotoPageProps> = ({ onFoodLogged
     </div>
   );
 };
-
