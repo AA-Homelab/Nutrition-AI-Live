@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { DataService } from '../services/dataService';
 import { UserAccount, UserProfile, UserRole, UserStatus } from '../types';
+import { adminCreateUserDirect, isFirebaseConfigured } from '../services/firebase';
 import {
   ShieldCheck,
   UserPlus,
@@ -83,30 +84,66 @@ export const AdminDashboardPage: React.FC = () => {
     setStatusMessage(null);
 
     try {
-      // 1. Call backend server endpoint
-      const response = await fetch('/api/admin/create-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: newEmail.trim().toLowerCase(),
-          displayName: newDisplayName.trim(),
-          role: newRole,
-          initialPassword: newPassword,
-          requirePasswordChange,
-        }),
-      });
+      let createdUid: string;
+      const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+      const isStaticHost =
+        typeof window !== 'undefined' &&
+        (window.location.hostname.endsWith('github.io') ||
+          window.location.hostname.includes('pages.dev') ||
+          (!API_BASE &&
+            window.location.hostname !== 'localhost' &&
+            !window.location.hostname.includes('127.0.0.1') &&
+            !window.location.hostname.includes('.run.app')));
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create user account.');
+      if (!isStaticHost && API_BASE) {
+        // Option 1: Remote or full-stack Node.js server proxy
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/create-user`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: newEmail.trim().toLowerCase(),
+              displayName: newDisplayName.trim(),
+              role: newRole,
+              initialPassword: newPassword,
+              requirePasswordChange,
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Failed to create user account.');
+          createdUid = data.user.uid;
+        } catch (fetchErr: any) {
+          if (isFirebaseConfigured) {
+            const direct = await adminCreateUserDirect(
+              newEmail.trim().toLowerCase(),
+              newPassword,
+              newDisplayName.trim()
+            );
+            createdUid = direct.uid;
+          } else {
+            throw fetchErr;
+          }
+        }
+      } else if (isFirebaseConfigured) {
+        // Option 2: Running on static host (GitHub Pages) with live Firebase!
+        // Directly provision the user in Firebase Auth without needing a Node backend
+        const direct = await adminCreateUserDirect(
+          newEmail.trim().toLowerCase(),
+          newPassword,
+          newDisplayName.trim()
+        );
+        createdUid = direct.uid;
+      } else {
+        // Option 3: Local mock preview
+        createdUid = `user-${Date.now()}`;
       }
 
       // 2. Persist in database
       const newAccount: UserAccount = {
-        uid: data.user.uid,
-        email: data.user.email,
-        displayName: data.user.displayName,
-        role: data.user.role,
+        uid: createdUid,
+        email: newEmail.trim().toLowerCase(),
+        displayName: newDisplayName.trim() || newEmail.split('@')[0],
+        role: newRole,
         status: 'active',
         mustChangePassword: requirePasswordChange,
         isFirstLogin: requirePasswordChange,
