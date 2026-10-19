@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { DataService } from '../services/dataService';
 import { AiClientService } from '../services/aiClientService';
 import { AiFoodAnalysisResult, DetectedFoodItem, FoodLogEntry, MealType } from '../types';
+import { getLocalDateString } from '../utils/dateUtils';
 import {
   Camera,
   Upload,
@@ -181,7 +182,7 @@ export const AnalyzePhotoPage: React.FC<AnalyzePhotoPageProps> = ({ onFoodLogged
     setErrorMessage(null);
 
     try {
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalDateString();
       const nowTime = new Date().toTimeString().substring(0, 5);
 
       for (const item of itemsToLog) {
