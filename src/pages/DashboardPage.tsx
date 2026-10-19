@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { DataService } from '../services/dataService';
 import { calculateRemaining } from '../services/nutritionCalculator';
 import { FoodLogEntry, MealType } from '../types';
+import { getLocalDateString, addDaysToDateString } from '../utils/dateUtils';
 import {
   Flame,
   Plus,
@@ -38,8 +39,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 }) => {
   const { currentUser, userProfile, nutritionTargets } = useAuth();
 
-  // Selected Date (default: today YYYY-MM-DD)
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Selected Date (default: today YYYY-MM-DD in local time)
+  const todayStr = getLocalDateString();
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [foodLogs, setFoodLogs] = useState<FoodLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,15 +78,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   // Date controls
   const handlePrevDay = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate((prev) => addDaysToDateString(prev, -1));
   };
 
   const handleNextDay = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate((prev) => addDaysToDateString(prev, 1));
   };
 
   const handleDelete = async (entryId: string) => {
