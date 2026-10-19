@@ -9,6 +9,7 @@ import { DataService } from '../services/dataService';
 import { FOOD_DATABASE, searchFoods } from '../data/foodDatabase';
 import { DatabaseFoodItem, FoodLogEntry, MealType } from '../types';
 import { calculateDailyTotals } from '../services/nutritionCalculator';
+import { getLocalDateString } from '../utils/dateUtils';
 import {
   Plus,
   Search,
@@ -34,7 +35,7 @@ export const FoodLogPage: React.FC<FoodLogPageProps> = ({
   onClearEditing,
 }) => {
   const { currentUser } = useAuth();
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString();
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [entries, setEntries] = useState<FoodLogEntry[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
