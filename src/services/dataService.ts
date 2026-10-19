@@ -26,6 +26,7 @@ import {
   WeightLogEntry,
   AiChatMessage,
 } from '../types';
+import { normalizeDateString } from '../utils/dateUtils';
 
 // =============================================================================
 // DEFAULT SEED DATA FOR LOCAL DEV / INSTANT PREVIEW
@@ -312,27 +313,8 @@ export const DataService = {
     date: string,
     callback: (entries: FoodLogEntry[]) => void
   ): () => void {
-    if (isFirebaseConfigured && db) {
-      const q = query(
-        collection(db, 'users', userId, 'foodLogs'),
-        where('date', '==', date)
-      );
-
-      const unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          const items = snapshot.docs.map((d) => d.data() as FoodLogEntry);
-          callback(items);
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.LIST, `users/${userId}/foodLogs`, auth);
-        }
-      );
-      return unsubscribe;
-    }
-
-    // Local Storage subscription
-    const read = () => {
+    // Read local cache immediately
+    const readLocal = () => {
       const all = getLocalStore<FoodLogEntry[]>(`foodlogs_${userId}`, [
         {
           id: 'seed-log-1',
@@ -370,69 +352,144 @@ export const DataService = {
           aiConfidence: 0.92,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-        }
+        },
       ]);
-      const filtered = all.filter((l) => l.date === date);
+      const targetDate = normalizeDateString(date);
+      const filtered = all.filter((l) => normalizeDateString(l.date) === targetDate);
       callback(filtered);
     };
 
-    read();
+    // Instant initial render from local cache
+    readLocal();
+
     const eventName = `nutritrack_event_foodlogs_${userId}`;
-    window.addEventListener(eventName, read);
-    return () => window.removeEventListener(eventName, read);
+    window.addEventListener(eventName, readLocal);
+
+    let unsubscribeFirestore: (() => void) | null = null;
+    if (isFirebaseConfigured && db) {
+      try {
+        const q = query(
+          collection(db, 'users', userId, 'foodLogs'),
+          where('date', '==', date)
+        );
+
+        unsubscribeFirestore = onSnapshot(
+          q,
+          (snapshot) => {
+            const items = snapshot.docs.map((d) => d.data() as FoodLogEntry);
+            if (items.length > 0) {
+              const currentAll = getLocalStore<FoodLogEntry[]>(`foodlogs_${userId}`, []);
+              const mergedMap = new Map<string, FoodLogEntry>();
+              currentAll.forEach((i) => mergedMap.set(i.id, i));
+              items.forEach((i) => mergedMap.set(i.id, i));
+              setLocalStore(`foodlogs_${userId}`, Array.from(mergedMap.values()));
+              callback(items);
+            }
+          },
+          (error) => {
+            handleFirestoreError(error, OperationType.LIST, `users/${userId}/foodLogs`, auth);
+            readLocal();
+          }
+        );
+      } catch (e) {
+        console.warn('Notice setting up Firestore foodLogs listener:', e);
+      }
+    }
+
+    return () => {
+      window.removeEventListener(eventName, readLocal);
+      if (unsubscribeFirestore) {
+        unsubscribeFirestore();
+      }
+    };
   },
 
   async getAllFoodLogs(userId: string): Promise<FoodLogEntry[]> {
+    const local = getLocalStore<FoodLogEntry[]>(`foodlogs_${userId}`, []);
     if (isFirebaseConfigured && db) {
       try {
-        const snap = await getDocs(collection(db, 'users', userId, 'foodLogs'));
-        return snap.docs.map((d) => d.data() as FoodLogEntry);
+        const snap = await Promise.race([
+          getDocs(collection(db, 'users', userId, 'foodLogs')),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Firestore getDocs timed out')), 5000)
+          ),
+        ]);
+        const items = snap.docs.map((d) => d.data() as FoodLogEntry);
+        if (items.length > 0) {
+          setLocalStore(`foodlogs_${userId}`, items);
+          return items;
+        }
       } catch (err) {
         handleFirestoreError(err, OperationType.LIST, `users/${userId}/foodLogs`, auth);
       }
     }
-    return getLocalStore<FoodLogEntry[]>(`foodlogs_${userId}`, []);
+    return local;
   },
 
   async addFoodLog(entry: FoodLogEntry): Promise<void> {
+    // 1. Immediately store in LocalStorage and dispatch reactive event
+    const all = getLocalStore<FoodLogEntry[]>(`foodlogs_${entry.userId}`, []);
+    const existingIdx = all.findIndex((l) => l.id === entry.id);
+    if (existingIdx >= 0) {
+      all[existingIdx] = entry;
+    } else {
+      all.push(entry);
+    }
+    setLocalStore(`foodlogs_${entry.userId}`, all);
+
+    // 2. Sync to Firebase Firestore with safety timeout so slow networks never hang
     if (isFirebaseConfigured && db) {
       try {
-        await setDoc(doc(db, 'users', entry.userId, 'foodLogs', entry.id), entry);
+        await Promise.race([
+          setDoc(doc(db, 'users', entry.userId, 'foodLogs', entry.id), entry),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Firestore sync timed out')), 4000)
+          ),
+        ]);
       } catch (err) {
+        console.warn('Notice saving food log to Firestore, preserved in local storage:', err);
         handleFirestoreError(err, OperationType.CREATE, `users/${entry.userId}/foodLogs/${entry.id}`, auth);
       }
-    } else {
-      const all = getLocalStore<FoodLogEntry[]>(`foodlogs_${entry.userId}`, []);
-      all.push(entry);
-      setLocalStore(`foodlogs_${entry.userId}`, all);
     }
   },
 
   async updateFoodLog(entry: FoodLogEntry): Promise<void> {
+    const all = getLocalStore<FoodLogEntry[]>(`foodlogs_${entry.userId}`, []);
+    const updated = all.map((item) => (item.id === entry.id ? entry : item));
+    setLocalStore(`foodlogs_${entry.userId}`, updated);
+
     if (isFirebaseConfigured && db) {
       try {
-        await setDoc(doc(db, 'users', entry.userId, 'foodLogs', entry.id), entry);
+        await Promise.race([
+          setDoc(doc(db, 'users', entry.userId, 'foodLogs', entry.id), entry),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Firestore sync timed out')), 4000)
+          ),
+        ]);
       } catch (err) {
+        console.warn('Notice updating food log in Firestore, preserved in local storage:', err);
         handleFirestoreError(err, OperationType.UPDATE, `users/${entry.userId}/foodLogs/${entry.id}`, auth);
       }
-    } else {
-      const all = getLocalStore<FoodLogEntry[]>(`foodlogs_${entry.userId}`, []);
-      const updated = all.map((item) => (item.id === entry.id ? entry : item));
-      setLocalStore(`foodlogs_${entry.userId}`, updated);
     }
   },
 
   async deleteFoodLog(userId: string, foodLogId: string): Promise<void> {
+    const all = getLocalStore<FoodLogEntry[]>(`foodlogs_${userId}`, []);
+    const filtered = all.filter((item) => item.id !== foodLogId);
+    setLocalStore(`foodlogs_${userId}`, filtered);
+
     if (isFirebaseConfigured && db) {
       try {
-        await deleteDoc(doc(db, 'users', userId, 'foodLogs', foodLogId));
+        await Promise.race([
+          deleteDoc(doc(db, 'users', userId, 'foodLogs', foodLogId)),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Firestore sync timed out')), 4000)
+          ),
+        ]);
       } catch (err) {
+        console.warn('Notice deleting food log from Firestore, removed from local storage:', err);
         handleFirestoreError(err, OperationType.DELETE, `users/${userId}/foodLogs/${foodLogId}`, auth);
       }
-    } else {
-      const all = getLocalStore<FoodLogEntry[]>(`foodlogs_${userId}`, []);
-      const filtered = all.filter((item) => item.id !== foodLogId);
-      setLocalStore(`foodlogs_${userId}`, filtered);
     }
   },
 
