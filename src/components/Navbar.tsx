@@ -21,7 +21,9 @@ import {
   X,
   Database,
   CheckCircle2,
+  Smartphone,
 } from 'lucide-react';
+import { MobileAppModal } from './MobileAppModal';
 
 interface NavbarProps {
   currentTab: string;
@@ -40,6 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab }) => {
   const { currentUser, userAccount, userProfile, isAdmin, isFirebaseLive, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [mobileAppModalOpen, setMobileAppModalOpen] = useState(false);
 
   const userNavItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -134,6 +137,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab }) => {
               )}
             </div>
 
+            {/* Mobile App Install & Setup Button */}
+            <button
+              onClick={() => setMobileAppModalOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-all cursor-pointer shadow-sm"
+              title="Install on Android or iOS"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Mobile App</span>
+            </button>
+
             {/* Profile Dropdown */}
             <div className="relative">
               <button
@@ -179,6 +192,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab }) => {
                     >
                       <User className="w-4 h-4 text-slate-400" />
                       Nutrition Profile & Targets
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMobileAppModalOpen(true);
+                        setUserDropdownOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-emerald-300 hover:bg-slate-800 hover:text-white"
+                    >
+                      <Smartphone className="w-4 h-4 text-emerald-400" />
+                      Mobile App (Android & iOS)
                     </button>
                     {isAdmin && (
                       <button
@@ -247,8 +270,24 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, onSelectTab }) => {
               </button>
             );
           })}
+
+          <div className="pt-2 border-t border-slate-800/80">
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setMobileAppModalOpen(true);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+            >
+              <Smartphone className="w-4 h-4" />
+              <span>Install Mobile App (Android & iOS)</span>
+            </button>
+          </div>
         </div>
       )}
+
+      {/* Interactive Android & iOS Mobile Modal */}
+      <MobileAppModal isOpen={mobileAppModalOpen} onClose={() => setMobileAppModalOpen(false)} />
     </header>
   );
 };
