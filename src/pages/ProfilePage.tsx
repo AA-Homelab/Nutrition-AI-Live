@@ -21,10 +21,13 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  Smartphone,
 } from 'lucide-react';
+import { MobileAppModal } from '../components/MobileAppModal';
 
 export const ProfilePage: React.FC = () => {
   const { currentUser, userAccount, userProfile, nutritionTargets, updateProfileAndTargets, changePassword } = useAuth();
+  const [mobileModalOpen, setMobileModalOpen] = useState(false);
 
   const [fullName, setFullName] = useState(userProfile?.fullName || userAccount?.displayName || '');
   const [sex, setSex] = useState<Sex>(userProfile?.sex || 'female');
@@ -589,6 +592,39 @@ export const ProfilePage: React.FC = () => {
           </div>
         </form>
       </div>
+
+      {/* Mobile App Support (Android & iOS) */}
+      <div className="bg-gradient-to-r from-emerald-950/40 via-slate-900 to-teal-950/40 border border-emerald-500/20 rounded-3xl p-6 sm:p-8 shadow-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0 border border-emerald-500/30">
+              <Smartphone className="w-6 h-6 stroke-[2]" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                NutriTrack Mobile App
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  Android & iOS
+                </span>
+              </h3>
+              <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+                Install NutriTrack AI onto your Android phone or iPhone/iPad for instant camera meal scanning, full-screen native app experience, offline tracking, and home screen access.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setMobileModalOpen(true)}
+            className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all flex-shrink-0 cursor-pointer"
+          >
+            <Smartphone className="w-4 h-4 stroke-[2.5]" />
+            Install & Setup Guide
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile App Modal */}
+      <MobileAppModal isOpen={mobileModalOpen} onClose={() => setMobileModalOpen(false)} />
     </div>
   );
 };
