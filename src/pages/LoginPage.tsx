@@ -16,6 +16,7 @@ import {
   UserPlus,
   User,
 } from 'lucide-react';
+import { PWAInstallBanner } from '../components/PWAInstallBanner';
 
 export const LoginPage: React.FC = () => {
   const { login, signUp, resetPassword, loading, isFirebaseLive } = useAuth();
@@ -87,6 +88,10 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden">
+      <div className="w-full absolute top-0 left-0 z-40">
+        <PWAInstallBanner />
+      </div>
+
       {/* Ambient background glows */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -128,11 +133,16 @@ export const LoginPage: React.FC = () => {
           {mode === 'signin' ? (
             <form onSubmit={handleSignIn} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">Email Address</label>
+                <label htmlFor="login-email" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Email Address
+                </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
+                    id="login-email"
+                    name="email"
                     type="email"
+                    autoComplete="username email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -144,7 +154,9 @@ export const LoginPage: React.FC = () => {
 
               <div>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label className="text-xs font-semibold text-slate-300">Password</label>
+                  <label htmlFor="login-password" className="text-xs font-semibold text-slate-300">
+                    Password
+                  </label>
                   <button
                     type="button"
                     onClick={() => setForgotModalOpen(true)}
@@ -156,7 +168,10 @@ export const LoginPage: React.FC = () => {
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
+                    id="login-password"
+                    name="password"
                     type="password"
+                    autoComplete="current-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -269,9 +284,14 @@ export const LoginPage: React.FC = () => {
             ) : (
               <form onSubmit={handleForgotPassword} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">Email</label>
+                  <label htmlFor="forgot-password-email" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Email
+                  </label>
                   <input
+                    id="forgot-password-email"
+                    name="email"
                     type="email"
+                    autoComplete="email"
                     required
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
