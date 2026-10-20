@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
+import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { LoginPage } from './pages/LoginPage';
 import { ForceChangePasswordPage } from './pages/ForceChangePasswordPage';
@@ -70,6 +71,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      <PWAInstallBanner />
       <Navbar currentTab={currentTab} onSelectTab={setCurrentTab} />
 
       <main className="flex-1 pb-16">
